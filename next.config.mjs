@@ -1,74 +1,17 @@
-import webpack from "webpack";
-
-const mode = process.env.BUILD_MODE ?? "standalone";
-console.log("[Next] build mode", mode);
-
-const disableChunk = !!process.env.DISABLE_CHUNK || mode === "export";
-console.log("[Next] build with chunk: ", !disableChunk);
-
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  webpack(config) {
-    config.module.rules.push({
-      test: /\.svg$/,
-      use: ["@svgr/webpack"],
-    });
-
-    if (disableChunk) {
-      config.plugins.push(
-        new webpack.optimize.LimitChunkCountPlugin({ maxChunks: 1 }),
-      );
-    }
-
-    config.resolve.fallback = {
-      child_process: false,
-    };
-
-    return config;
-  },
-  output: mode,
-  images: {
-    unoptimized: mode === "export",
-  },
-  experimental: {
-    forceSwcTransforms: true,
-  },
-};
-
-const CorsHeaders = [
-  { key: "Access-Control-Allow-Credentials", value: "true" },
-  { key: "Access-Control-Allow-Origin", value: "*" },
-  {
-    key: "Access-Control-Allow-Methods",
-    value: "*",
-  },
-  {
-    key: "Access-Control-Allow-Headers",
-    value: "*",
-  },
-  {
-    key: "Access-Control-Max-Age",
-    value: "86400",
-  },
-];
-
-if (mode !== "export") {
-  nextConfig.headers = async () => {
-    return [
-      {
-        source: "/api/:path*",
-        headers: CorsHeaders,
-      },
-    ];
-  };
-
-  nextConfig.rewrites = async () => {
+nextConfig.rewrites = async () => {
     const ret = [
-      // 根路径内部重写到静态index.html
+      // 根路径重写，排除证书校验路径，不干扰SSL证书签发
       {
         source: "/",
         destination: "/index.html",
+        has: [
+          {
+            type: "path",
+            value: "!/.well-known/:path*",
+          },
+        ],
       },
+      // 下面保留你全部原有代理规则不动
       {
         source: "/api/proxy/azure/:resource_name/deployments/:deploy_name/:path*",
         destination:
@@ -104,6 +47,3 @@ if (mode !== "export") {
       beforeFiles: ret,
     };
   };
-}
-
-export default nextConfig;
